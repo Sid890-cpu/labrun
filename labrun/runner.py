@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import shutil
 import json
 import os
 import platform
@@ -36,7 +37,7 @@ if os.environ.get("LABRUN_BLOCK_NET") == "1":
 @dataclass
 class Policy:
     timeout_s: float = 30.0
-    max_memory_mb: int = 512
+    max_memory_mb: int = 2048
     max_output_kb: int = 256
     block_network: bool = True
 
@@ -58,6 +59,7 @@ class RunRecord:
     output_sha256: str = ""
     duration_s: float = 0.0
     parent_run_id: Optional[str] = None
+    artifacts: dict = field(default_factory=dict)
 
 
 def _sha(s: str) -> str:
@@ -137,6 +139,16 @@ class Runner:
                 err = (e.stderr or b"").decode() if isinstance(e.stderr, bytes) else (e.stderr or "")
             rec.duration_s = round(time.time() - start, 4)
 
+            # keep files the experiment wrote (results, plots, checkpoints)
+            art_dir = self.store / rec.run_id / "artifacts"
+            for f in sorted(Path(work).rglob("*")):
+                if f.is_file() and f.name not in ("exp.py", "inputs.json"):
+                    rel = f.relative_to(work)
+                    dest = art_dir / rel
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(f, dest)
+                    rec.artifacts[str(rel)] = hashlib.sha256(f.read_bytes()).hexdigest()
+
         cap = policy.max_output_kb * 1024
         rec.stdout, rec.stderr = out[:cap], err[:cap]
         rec.output_sha256 = _sha(rec.stdout)
@@ -151,7 +163,8 @@ class Runner:
             orig.code, orig.inputs, orig.seed,
             policy=Policy(**orig.policy), _parent=orig.run_id, _env=orig.env,
         )
-        return new, new.output_sha256 == orig.output_sha256
+        ok = new.output_sha256 == orig.output_sha256 and new.artifacts == orig.artifacts
+        return new, ok
 
     # ---- storage -------------------------------------------------------
     def _save(self, rec: RunRecord) -> None:
