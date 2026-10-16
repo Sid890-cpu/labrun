@@ -15,7 +15,7 @@ def main(argv=None):
     r.add_argument("file")
     r.add_argument("--seed", type=int, default=0)
     r.add_argument("--timeout", type=float, default=30)
-    r.add_argument("--memory-mb", type=int, default=512)
+    r.add_argument("--memory-mb", type=int, default=2048)
     r.add_argument("--allow-network", action="store_true")
 
     p = sub.add_parser("replay", help="re-run a past run and verify identical output")
@@ -56,7 +56,7 @@ def main(argv=None):
         rec = runner.load(a.run_id)
         print(f"run_id:   {rec.run_id}\ncode_sha: {rec.code_sha256}\nseed:     {rec.seed}")
         print(f"exit:     {rec.exit_code}  timed_out={rec.timed_out}  {rec.duration_s}s")
-        print(f"output:   {rec.output_sha256}\npolicy:   {rec.policy}\n--- code ---\n{rec.code}\n--- stdout ---\n{rec.stdout}")
+        print(f"output:   {rec.output_sha256}\nfiles:    {rec.artifacts}\npolicy:   {rec.policy}\n--- code ---\n{rec.code}\n--- stdout ---\n{rec.stdout}")
         if rec.stderr:
             print(f"--- stderr ---\n{rec.stderr}")
         return 0
