@@ -38,3 +38,11 @@ def test_memory_limit():
     r = mk()
     rec = r.run("x = bytearray(2 * 1024**3)", policy=Policy(max_memory_mb=128))
     assert rec.exit_code != 0
+
+
+def test_artifacts_captured_and_replayed():
+    r = mk()
+    rec = r.run("open('out.txt','w').write('hello')\nprint('done')")
+    assert "out.txt" in rec.artifacts
+    new, ok = r.replay(rec.run_id)
+    assert ok
