@@ -15,7 +15,7 @@ def main(argv=None):
     r.add_argument("file")
     r.add_argument("--seed", type=int, default=0)
     r.add_argument("--timeout", type=float, default=30)
-    r.add_argument("--memory-mb", type=int, default=2048)
+    r.add_argument("--memory-mb", type=int, default=0, help="virtual memory cap in MB, 0 = none (GPU needs 0)")
     r.add_argument("--allow-network", action="store_true")
 
     p = sub.add_parser("replay", help="re-run a past run and verify identical output")

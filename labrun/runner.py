@@ -37,7 +37,7 @@ if os.environ.get("LABRUN_BLOCK_NET") == "1":
 @dataclass
 class Policy:
     timeout_s: float = 30.0
-    max_memory_mb: int = 2048
+    max_memory_mb: int = 0  # 0 = no cap; CUDA needs it off
     max_output_kb: int = 256
     block_network: bool = True
 
@@ -119,8 +119,10 @@ class Runner:
             }
 
             def limits():
-                mem = policy.max_memory_mb * 1024 * 1024
-                resource.setrlimit(resource.RLIMIT_AS, (mem, mem))
+                # RLIMIT_AS breaks CUDA (needs huge virtual address space), so cap only when asked
+                if policy.max_memory_mb > 0:
+                    mem = policy.max_memory_mb * 1024 * 1024
+                    resource.setrlimit(resource.RLIMIT_AS, (mem, mem))
                 os.setsid()
 
             start = time.time()
