@@ -46,3 +46,37 @@ def test_artifacts_captured_and_replayed():
     assert "out.txt" in rec.artifacts
     new, ok = r.replay(rec.run_id)
     assert ok
+
+
+import json as _json
+from pathlib import Path as _Path
+
+
+def _tamper(r, run_id, field, value):
+    f = _Path(r.store) / f"{run_id}.json"
+    d = _json.loads(f.read_text())
+    d[field] = value
+    f.write_text(_json.dumps(d))
+
+
+def test_replay_mismatch_on_each_field():
+    cases = {
+        "exit_code": 99,
+        "timed_out": True,
+        "output_sha256": "0" * 64,
+        "stderr_sha256": "0" * 64,
+        "artifacts": {"fake.txt": "0" * 64},
+    }
+    for field, bad in cases.items():
+        r = mk()
+        rec = r.run("open('out.txt','w').write('x')\nprint('hi')")
+        _tamper(r, rec.run_id, field, bad)
+        _, ok = r.replay(rec.run_id)
+        assert not ok, f"replay should be MISMATCH when {field} differs"
+
+
+def test_nondeterministic_run_mismatches():
+    r = mk()
+    rec = r.run("import time\nprint(time.time())")
+    _, ok = r.replay(rec.run_id)
+    assert not ok
