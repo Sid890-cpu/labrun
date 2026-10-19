@@ -191,3 +191,26 @@ class Runner:
     def list(self) -> list[RunRecord]:
         recs = [RunRecord(**json.loads(p.read_text())) for p in self.store.glob("*.json")]
         return sorted(recs, key=lambda r: r.created_at)
+
+
+def diff_runs(orig: RunRecord, new: RunRecord) -> list[str]:
+    """Human-readable reasons two runs differ. Empty list means they match."""
+    out = []
+    if orig.exit_code != new.exit_code:
+        out.append(f"exit code: {orig.exit_code} -> {new.exit_code}")
+    if orig.timed_out != new.timed_out:
+        out.append(f"timed out: {orig.timed_out} -> {new.timed_out}")
+    for name, a, b in (("stdout", orig.stdout, new.stdout), ("stderr", orig.stderr, new.stderr)):
+        if _sha(a) != _sha(b):
+            la, lb = a.splitlines(), b.splitlines()
+            i = next((k for k in range(max(len(la), len(lb)))
+                      if (la[k] if k < len(la) else None) != (lb[k] if k < len(lb) else None)), 0)
+            x = la[i] if i < len(la) else "<missing>"
+            y = lb[i] if i < len(lb) else "<missing>"
+            out.append(f"{name} differs at line {i + 1}:\n    original: {x}\n    replay:   {y}")
+    if orig.artifacts != new.artifacts:
+        for f in sorted(set(orig.artifacts) | set(new.artifacts)):
+            if orig.artifacts.get(f) != new.artifacts.get(f):
+                out.append(f"file {f}: " + ("missing in replay" if f not in new.artifacts
+                           else "new in replay" if f not in orig.artifacts else "content differs"))
+    return out

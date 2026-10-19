@@ -3,7 +3,7 @@ import sys
 import time
 from pathlib import Path
 
-from .runner import Runner, Policy
+from .runner import Runner, Policy, diff_runs
 
 
 def main(argv=None):
@@ -42,6 +42,9 @@ def main(argv=None):
     if a.cmd == "replay":
         new, ok = runner.replay(a.run_id)
         print(f"[labrun] replay {a.run_id} -> {new.run_id}: {'MATCH' if ok else 'MISMATCH'}")
+        if not ok:
+            for reason in diff_runs(runner.load(a.run_id), new):
+                print(f"  - {reason}")
         return 0 if ok else 1
 
     if a.cmd == "list":
