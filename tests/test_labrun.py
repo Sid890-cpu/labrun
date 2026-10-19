@@ -80,3 +80,14 @@ def test_nondeterministic_run_mismatches():
     rec = r.run("import time\nprint(time.time())")
     _, ok = r.replay(rec.run_id)
     assert not ok
+
+
+def test_diff_reports_stdout_line():
+    from labrun.runner import diff_runs
+    r = mk()
+    rec = r.run("print('a')\nprint('b')")
+    bad = r.load(rec.run_id)
+    bad.stdout = "a\nX\n"
+    bad.output_sha256 = "x"
+    reasons = diff_runs(r.load(rec.run_id), bad)
+    assert any("stdout differs at line 2" in x for x in reasons)
