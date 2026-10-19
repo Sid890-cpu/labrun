@@ -57,6 +57,7 @@ class RunRecord:
     stdout: str = ""
     stderr: str = ""
     output_sha256: str = ""
+    stderr_sha256: str = ""
     duration_s: float = 0.0
     parent_run_id: Optional[str] = None
     artifacts: dict = field(default_factory=dict)
@@ -110,13 +111,17 @@ class Runner:
             script.write_text(_PRELUDE + "\n" + code)
             (Path(work) / "inputs.json").write_text(json.dumps(inputs))
 
-            env = {
-                "PATH": os.environ.get("PATH", ""),
+            # pass through what the GPU driver and CUDA libs need; everything else is dropped
+            keep = ("PATH", "HOME", "LANG", "VIRTUAL_ENV", "LD_LIBRARY_PATH",
+                    "CUDA_VISIBLE_DEVICES", "CUDA_HOME", "NVIDIA_VISIBLE_DEVICES",
+                    "NVIDIA_DRIVER_CAPABILITIES", "TORCH_HOME")
+            env = {k: os.environ[k] for k in keep if k in os.environ}
+            env.update({
                 "LABRUN_SEED": str(seed),
                 "LABRUN_BLOCK_NET": "1" if policy.block_network else "0",
                 "LABRUN_INPUTS": str(Path(work) / "inputs.json"),
                 "PYTHONHASHSEED": str(seed),
-            }
+            })
 
             def limits():
                 # RLIMIT_AS breaks CUDA (needs huge virtual address space), so cap only when asked
@@ -154,6 +159,7 @@ class Runner:
         cap = policy.max_output_kb * 1024
         rec.stdout, rec.stderr = out[:cap], err[:cap]
         rec.output_sha256 = _sha(rec.stdout)
+        rec.stderr_sha256 = _sha(rec.stderr)
         self._save(rec)
         return rec
 
@@ -165,7 +171,13 @@ class Runner:
             orig.code, orig.inputs, orig.seed,
             policy=Policy(**orig.policy), _parent=orig.run_id, _env=orig.env,
         )
-        ok = new.output_sha256 == orig.output_sha256 and new.artifacts == orig.artifacts
+        ok = (
+            new.exit_code == orig.exit_code
+            and new.timed_out == orig.timed_out
+            and new.output_sha256 == orig.output_sha256
+            and new.stderr_sha256 == orig.stderr_sha256
+            and new.artifacts == orig.artifacts
+        )
         return new, ok
 
     # ---- storage -------------------------------------------------------
